@@ -20,14 +20,18 @@
 #define WINDOW_HEIGHT 400
 
 // Global Variables:
+HWND hWnd;
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 char str[80] = "";
 wchar_t szBuff[256];
-
-
-
+HANDLE hThrd;
+DWORD threadId;
+HANDLE hEventRead;
+int width, height;
+LPSKYETEK_READER *readers = NULL;
+bool isConnected = false;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -40,6 +44,8 @@ void printToScreen(char* readBuffer, LPVOID hWnd);
 void printToScreen2(LPWSTR str, LPVOID hWnd);
 SKYETEK_STATUS ReadTagData(LPSKYETEK_READER lpReader, LPSKYETEK_TAG lpTag);
 void output(TCHAR *sz, ...);
+DWORD WINAPI ReadThread(LPVOID hwnd);
+void ReadTag();
 
 
 
@@ -69,6 +75,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     MSG msg;
 
+	// Create Read thread
+	hThrd = CreateThread(NULL, 0, ReadThread, (LPVOID)hWnd, 0, &threadId);
+	if (hThrd)
+	{
+		CloseHandle(hThrd);
+	}
+
+	// Get the width and height
+	RECT rect;
+	if (GetClientRect(hWnd, &rect))
+	{
+		width = rect.right - rect.left;
+		height = rect.bottom - rect.top;
+	}
+
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
@@ -82,7 +103,137 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     return (int) msg.wParam;
 }
 
+DWORD WINAPI ReadThread(LPVOID hwnd)
+{
+	HWND _hwnd = (HWND)hwnd;
+	// Create the overlapped event. Must be closed before exiting
+	// to avoid a handle leak.
+	//hEventRead = CreateEvent(NULL, TRUE, FALSE, NULL);
+	LPSECURITY_ATTRIBUTES lpEventAttributes = NULL;
+	BOOL bManualReset = FALSE;
+	BOOL bInitialState = FALSE;
+	LPCTSTR lpName = NULL;
+	hEventRead = CreateEvent(lpEventAttributes, bManualReset, bInitialState, lpName);
 
+	DWORD dwRes;
+	int a = 0;
+	while (true)
+	{
+		if (isConnected)
+			ReadTag();
+		//dwRes = WaitForSingleObject(hEventRead, 10000);
+		//switch (dwRes)
+		//{
+		//	// Read completed.
+		//case WAIT_OBJECT_0:
+		//	ReadTag();
+		//	break;
+
+		//case WAIT_TIMEOUT:
+		//	a = 110;
+		//	break;
+
+		//default:
+		//	break;
+		//}
+	}
+
+	return 0;
+}
+
+void ReadTag()
+{
+	std::string out;
+	std::stringstream ss;
+	LPSKYETEK_DATA lpData = NULL;
+	LPSKYETEK_TAG *lpTags = NULL;
+	SKYETEK_STATUS st;
+	unsigned short count;
+	int totalReads = 0;
+
+
+	// Debug
+	//output(_T("Loop %d\n"), i);
+	//ss << "Loop ";
+	//out = ss.str();
+	printToScreen(strdup(out.c_str()), hWnd);
+	ss.str(std::string());
+	ss.clear();
+
+	// If it is an M9, set retries to zero
+	if (_tcscmp(readers[0]->model, _T("M9")) == 0)
+	{
+		lpData = SkyeTek_AllocateData(1);
+		lpData->data[0] = 0;
+		st = SkyeTek_SetSystemParameter(readers[0], SYS_COMMAND_RETRY, lpData);
+		SkyeTek_FreeData(lpData);
+		lpData = NULL;
+		if (st != SKYETEK_SUCCESS)
+		{
+			return;
+		}
+		//output(_T("Set M9 retries to zero for get tags\n"));
+	}
+
+	// Discover all tags
+	lpTags = NULL;
+	count = 0;
+	st = SkyeTek_GetTags(readers[0], AUTO_DETECT, &lpTags, &count);
+	if (st == SKYETEK_TIMEOUT)
+	{
+		//output(_T("*** WARNING: SkyeTek_GetTags timed out: %s\n"), readers[0]->friendly);
+		ss << "*** WARNING: SkyeTek_GetTags timed out: " << readers[0]->friendly << "\n";
+		out = ss.str();
+		printToScreen(strdup(out.c_str()), hWnd);
+		ss.str(std::string());
+		ss.clear();
+		return;
+	}
+	else if (st != SKYETEK_SUCCESS)
+	{
+		//output(_T("*** ERROR: SkyeTek_GetTags failed: %s\n"), STPV3_LookupResponse(st));
+		ss << "*** ERROR: SkyeTek_GetTags failed: " << STPV3_LookupResponse(st) << "\n";
+		out = ss.str();
+		printToScreen(strdup(out.c_str()), hWnd);
+		ss.str(std::string());
+		ss.clear();
+		return;
+	}
+
+	for (unsigned short ix = 0; ix < count; ix++)
+	{
+		ss << "Discovered tag: " << lpTags[ix]->friendly;
+		ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]";
+		out = ss.str();
+		printToScreen(strdup(out.c_str()), hWnd);
+		ss.str(std::string());
+		ss.clear();
+
+
+		// Don't attempt to read EM4X22 tags
+		if ((lpTags[ix]->type & 0xFFF0) != EM4X22_AUTO)
+		{
+			//output(_T("Reading tag: %s [%s]\n"), lpTags[ix]->friendly,
+			//	SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type));
+
+			ss << "Reading tag: " << lpTags[ix]->friendly;
+			ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]\n";
+			out = ss.str();
+			printToScreen(strdup(out.c_str()), hWnd);
+			ss.str(std::string());
+			ss.clear();
+
+			st = ReadTagData(readers[0], lpTags[ix]);
+			totalReads++;
+			if (st != SKYETEK_SUCCESS)
+			{
+			}
+		}
+	}
+
+	// Free tags
+	SkyeTek_FreeTags(readers[0], lpTags, count);
+}
 
 //
 //  FUNCTION: MyRegisterClass()
@@ -124,7 +275,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, 
+   hWnd = CreateWindowW(szWindowClass, 
 							 szTitle, 
 							 WS_OVERLAPPEDWINDOW,
 							 CW_USEDEFAULT, 
@@ -223,7 +374,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 int connect(HWND hWnd) {
 	LPSKYETEK_DEVICE *devices = NULL;
-	LPSKYETEK_READER *readers = NULL;
+	//LPSKYETEK_READER *readers = NULL;
 	LPSKYETEK_TAG *lpTags = NULL;
 	LPSKYETEK_DATA lpData = NULL;
 	SKYETEK_STATUS st;
@@ -301,109 +452,19 @@ int connect(HWND hWnd) {
 	output(_T("Added 5 seconds of additional timeout on device\n"));
 
 
-	ss << "Looping " << loops << "times\n";
+	//ss << "Looping " << loops << "times\n";
 	out = ss.str();
 	printToScreen(strdup(out.c_str()), hWnd);
 	ss.str(std::string());
 	ss.clear();
 	// Loop, discover tags and read data
 	//output(_T("Looping %d times...\n"), loops);
-	for (int i = 0; i < loops; i++)
-	{
-		// Debug
-		//output(_T("Loop %d\n"), i);
-		ss << "Loop " << i;
-		out = ss.str();
-		printToScreen(strdup(out.c_str()), hWnd);
-		ss.str(std::string());
-		ss.clear();
+	//for (int i = 0; i < loops; i++)
+	//{
+	//	ReadTag();
+	//} // End loop
 
-		// If it is an M9, set retries to zero
-		if (_tcscmp(readers[0]->model, _T("M9")) == 0)
-		{
-			lpData = SkyeTek_AllocateData(1);
-			lpData->data[0] = 0;
-			st = SkyeTek_SetSystemParameter(readers[0], SYS_COMMAND_RETRY, lpData);
-			SkyeTek_FreeData(lpData);
-			lpData = NULL;
-			if (st != SKYETEK_SUCCESS)
-			{
-				//output(_T("*** ERROR: failed to set M9 retries to 0: %s\n"), STPV3_LookupResponse(st));
-				failedLoops++;
-				continue;
-			}
-			//output(_T("Set M9 retries to zero for get tags\n"));
-		}
-
-		// Discover all tags
-		lpTags = NULL;
-		count = 0;
-		st = SkyeTek_GetTags(readers[0], AUTO_DETECT, &lpTags, &count);
-		if (st == SKYETEK_TIMEOUT)
-		{
-			//output(_T("*** WARNING: SkyeTek_GetTags timed out: %s\n"), readers[0]->friendly);
-			ss << "*** WARNING: SkyeTek_GetTags timed out: " << readers[0]->friendly << "\n";
-			out = ss.str();
-			printToScreen(strdup(out.c_str()), hWnd);
-			ss.str(std::string());
-			ss.clear();
-			failedLoops++;
-			continue;
-		}
-		else if (st != SKYETEK_SUCCESS)
-		{
-			//output(_T("*** ERROR: SkyeTek_GetTags failed: %s\n"), STPV3_LookupResponse(st));
-			ss << "*** ERROR: SkyeTek_GetTags failed: " << STPV3_LookupResponse(st) << "\n";
-			out = ss.str();
-			printToScreen(strdup(out.c_str()), hWnd);
-			ss.str(std::string());
-			ss.clear();
-			failedLoops++;
-			continue;
-		}
-
-		// Loop through tags and read each if it has data
-		//output(_T("Discovered %d tags\n"), count);
-		for (unsigned short ix = 0; ix < count; ix++)
-		{
-			//output(_T("Discovered tag: %s [%s]\n"), lpTags[ix]->friendly,
-			//	SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type));
-
-			ss << "Discovered tag: " << lpTags[ix]->friendly;
-			ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]";
-			out = ss.str();
-			printToScreen(strdup(out.c_str()), hWnd);
-			ss.str(std::string());
-			ss.clear();
-
-
-			// Don't attempt to read EM4X22 tags
-			if ((lpTags[ix]->type & 0xFFF0) != EM4X22_AUTO)
-			{
-				//output(_T("Reading tag: %s [%s]\n"), lpTags[ix]->friendly,
-				//	SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type));
-
-				ss << "Reading tag: " << lpTags[ix]->friendly;
-				ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]";
-				out = ss.str();
-				printToScreen(strdup(out.c_str()), hWnd);
-				ss.str(std::string());
-				ss.clear();
-
-				st = ReadTagData(readers[0], lpTags[ix]);
-				totalReads++;
-				if (st != SKYETEK_SUCCESS)
-				{
-					failedLoops++;
-					failedReads++;
-				}
-			}
-		}
-
-		// Free tags
-		SkyeTek_FreeTags(readers[0], lpTags, count);
-
-	} // End loop
+	isConnected = true;
 	return 1;
 
 }
@@ -546,15 +607,21 @@ void printToScreen(char* readBuffer, LPVOID hWnd) {
 	for (int i = 0; i < strlen(readBuffer); i++) {
 		wchar_t temp[2];
 		swprintf_s(temp, sizeof(temp) / sizeof(wchar_t), L"%c", readBuffer[i]);
-
-		TextOut(hdc, x, y, temp, wcslen(temp));
 		GetTextExtentPoint32(hdc, temp, wcslen(temp), &size);
 
-		x += size.cx;
-		if (x >= WINDOW_WIDTH - 20) {
+		if (x + size.cx >= width)
+		{
 			x = 0;
-			y = y + tm.tmHeight + tm.tmExternalLeading;
+			y += tm.tmHeight + tm.tmExternalLeading; // next line
 		}
+		if (!wcscmp(temp, L"\n")) // handle as a new line.
+		{
+			x = 0;
+			y += tm.tmHeight + tm.tmExternalLeading; // next line
+		}
+
+		TextOut(hdc, x, y, temp, wcslen(temp));
+		x += size.cx;
 	}
 
 	//OutputDebugStringA("received: ");
@@ -577,15 +644,22 @@ void printToScreen2(LPWSTR str, LPVOID hWnd) {
 
 	hdc = GetDC((HWND)hWnd);
 	GetTextMetrics(hdc, &tm);
-
-	TextOut(hdc, x2, y2, str, wcslen(str));
 	GetTextExtentPoint32(hdc, str, wcslen(str), &size);
 
-	x2 += size.cx;
-	if (x2 >= WINDOW_WIDTH - 20) {
+	if (x2 + size.cx >= width)
+	{
 		x2 = 0;
-		y2 = y2 + tm.tmHeight + tm.tmExternalLeading;
+		y2 += tm.tmHeight + tm.tmExternalLeading; // next line
 	}
+	if (!wcscmp(str, L"\n")) // handle as a new line.
+	{
+		x2 = 0;
+		y2 += tm.tmHeight + tm.tmExternalLeading; // next line
+	}
+
+	TextOut(hdc, x2, y2, str, wcslen(str));
+
+	x2 += size.cx;
 
 	//OutputDebugStringA("received: ");
 	/*OutputDebugStringA(str);
