@@ -11,14 +11,19 @@
 #include "SkyeTekAPI.h"
 #include "SkyeTekProtocol.h"
 
+#pragma warning (disable: 4096)
+#pragma warning (disable: 4996)
 
 #define MAX_LOADSTRING 100
+#define WINDOW_WIDTH 600
+#define WINDOW_HEIGHT 400
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 char str[80] = "";
+wchar_t szBuff[256];
 
 
 
@@ -29,8 +34,9 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
-int connect();
-
+int connect(HWND hWnd);
+void printToScreen(char* readBuffer, LPVOID hWnd);
+void printToScreen2(LPWSTR str, LPVOID hWnd);
 
 
 
@@ -165,7 +171,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 DestroyWindow(hWnd);
                 break;
 			case IDM_CONNECT:
-				connect();
+				connect(hWnd);
 				break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
@@ -212,7 +218,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 
 
-int connect() {
+int connect(HWND hWnd) {
 	LPSKYETEK_DEVICE *devices = NULL;
 	LPSKYETEK_READER *readers = NULL;
 	LPSKYETEK_TAG *lpTags = NULL;
@@ -226,28 +232,44 @@ int connect() {
 	int failedReads = 0;
 	int failedLoops = 0;
 
+	std::string out;
 
-
-	/*
+	
 	// Discover reader
 
-	Debug.WriteLine("Discovering reader...");
+	printToScreen("Discovering reader...", hWnd);
 	numDevices = SkyeTek_DiscoverDevices(&devices);
 	if (numDevices == 0){
 		return 0;
 	}
-	cout << "Discovered " << numDevices << " devices" << endl;
+
+	//out = "Discovered ";
+	//out += numDevices;
+	//out += " devices\n";
+	swprintf_s(szBuff, sizeof(szBuff) / sizeof(wchar_t), L"%s %d %s",
+		L"Discovered ", numDevices, L" devices.");
+	printToScreen("stuff", hWnd);
+
 	numReaders = SkyeTek_DiscoverReaders(devices, numDevices, &readers);
 	if (numReaders == 0)
 	{
 		SkyeTek_FreeDevices(devices, numDevices);
 		return 0;
 	}
-	cout << "Found reader: " << readers[0]->friendly << endl;
-	cout << "On device: " << readers[0]->lpDevice->type;
-	cout << "[" << readers[0]->lpDevice->address << "]" << endl;
 
-	*/
+	out = "Found reader: ";
+	out += (char*)readers[0]->friendly;
+	out += "\n";
+	out += "On device: "; 
+	out += (char*)readers[0]->lpDevice->type;
+	out += "["; 
+	out += (char*)readers[0]->lpDevice->address;
+	out += "]\n";
+
+	printToScreen(strdup(out.c_str()), hWnd);
+	
+
+	
 
 	return 1;
 
@@ -278,8 +300,8 @@ int connect() {
 -- NOTES:
 -- This prints characters to the window for display to the user.
 ----------------------------------------------------------------------------------------------------------------------*/
-/*
-void printToScreen(char readBuffer[], DWORD dwRead, LPVOID hwnd) {
+
+void printToScreen(char* readBuffer, LPVOID hWnd) {
 	HDC hdc;
 	RECT rect;
 	TEXTMETRIC tm;
@@ -288,24 +310,68 @@ void printToScreen(char readBuffer[], DWORD dwRead, LPVOID hwnd) {
 	static unsigned x = 0;
 	static unsigned y = 0;
 
-	hdc = GetDC((HWND)hwnd);
-	//string str;
-
-	sprintf_s(str, "%c", readBuffer[0]); // Convert char to string
+	hdc = GetDC((HWND)hWnd);
 	GetTextMetrics(hdc, &tm);
 
-	TextOut(hdc, x, y, (LPCWSTR)str, strlen(str));
-	GetTextExtentPoint32(hdc, (LPCWSTR)str, strlen(str), &size);
 
-	x += size.cx;
-	if (x >= WINDOW_WIDTH - 20) {
-		x = 0;
-		y = y + tm.tmHeight + tm.tmExternalLeading;
+	for (int i = 0; i < strlen(readBuffer); i++) {
+
+		
+		
+		wchar_t temp[2];
+		swprintf_s(temp, sizeof(temp) / sizeof(wchar_t), L"%c", readBuffer[i]);
+
+		TextOut(hdc, x, y, temp, wcslen(temp));
+		GetTextExtentPoint32(hdc, temp, wcslen(temp), &size);
+
+		x += size.cx;
+		if (x >= WINDOW_WIDTH - 20) {
+			x = 0;
+			y = y + tm.tmHeight + tm.tmExternalLeading;
+		}
 	}
 
-	OutputDebugStringA("received: ");
+
+	
+
+	//OutputDebugStringA("received: ");
 	OutputDebugStringA(str);
 	OutputDebugStringA("\n");
-	ReleaseDC((HWND)hwnd, hdc);
+	OutputDebugStringA(readBuffer);
+	OutputDebugStringA("\n");
+	ReleaseDC((HWND)hWnd, hdc);
 	readBuffer = '\0';
-}*/
+}
+
+void printToScreen2(LPWSTR str, LPVOID hWnd) {
+	HDC hdc;
+	RECT rect;
+	TEXTMETRIC tm;
+	SIZE size;
+
+	static unsigned x2 = 0;
+	static unsigned y2 = 0;
+
+	hdc = GetDC((HWND)hWnd);
+	GetTextMetrics(hdc, &tm);
+
+
+
+
+	TextOut(hdc, x2, y2, str, wcslen(str));
+	GetTextExtentPoint32(hdc, str, wcslen(str), &size);
+
+	x2 += size.cx;
+	if (x2 >= WINDOW_WIDTH - 20) {
+		x2 = 0;
+		y2 = y2 + tm.tmHeight + tm.tmExternalLeading;
+	}
+
+	//OutputDebugStringA("received: ");
+	/*OutputDebugStringA(str);
+	OutputDebugStringA("\n");
+	OutputDebugStringA(readBuffer);
+	OutputDebugStringA("\n");*/
+	ReleaseDC((HWND)hWnd, hdc);
+	str = '\0';
+}
