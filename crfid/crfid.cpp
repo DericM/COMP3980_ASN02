@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <string>
+#include <sstream>
 
 #include "SkyeTekAPI.h"
 #include "SkyeTekProtocol.h"
@@ -37,6 +38,8 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 int connect(HWND hWnd);
 void printToScreen(char* readBuffer, LPVOID hWnd);
 void printToScreen2(LPWSTR str, LPVOID hWnd);
+SKYETEK_STATUS ReadTagData(LPSKYETEK_READER lpReader, LPSKYETEK_TAG lpTag);
+void output(TCHAR *sz, ...);
 
 
 
@@ -233,22 +236,22 @@ int connect(HWND hWnd) {
 	int failedLoops = 0;
 
 	std::string out;
-
+	std::stringstream ss;
 	
 	// Discover reader
 
 	printToScreen("Discovering reader...", hWnd);
+	
 	numDevices = SkyeTek_DiscoverDevices(&devices);
 	if (numDevices == 0){
 		return 0;
 	}
+	ss << "Discovered " << numDevices << " devices.";
+	out = ss.str();
+	printToScreen(strdup(out.c_str()), hWnd);
+	ss.str(std::string());
+	ss.clear();
 
-	//out = "Discovered ";
-	//out += numDevices;
-	//out += " devices\n";
-	swprintf_s(szBuff, sizeof(szBuff) / sizeof(wchar_t), L"%s %d %s",
-		L"Discovered ", numDevices, L" devices.");
-	printToScreen("stuff", hWnd);
 
 	numReaders = SkyeTek_DiscoverReaders(devices, numDevices, &readers);
 	if (numReaders == 0)
@@ -256,21 +259,151 @@ int connect(HWND hWnd) {
 		SkyeTek_FreeDevices(devices, numDevices);
 		return 0;
 	}
-
-	out = "Found reader: ";
-	out += (char*)readers[0]->friendly;
-	out += "\n";
-	out += "On device: "; 
-	out += (char*)readers[0]->lpDevice->type;
-	out += "["; 
-	out += (char*)readers[0]->lpDevice->address;
-	out += "]\n";
-
+	ss << "Found reader: " << readers[0]->friendly << "\nOn device: ";
+	ss << readers[0]->lpDevice->type << "[" << readers[0]->lpDevice->address << "]\n";
+	out = ss.str();
 	printToScreen(strdup(out.c_str()), hWnd);
-	
+	ss.str(std::string());
+	ss.clear();
 
 	
+	// Get baud if serial
+	if (_tcscmp(readers[0]->lpDevice->type, SKYETEK_SERIAL_DEVICE_TYPE) == 0)
+	{
+		st = SkyeTek_GetSystemParameter(readers[0], SYS_BAUD, &lpData);
+		if (st != SKYETEK_SUCCESS)
+		{
+			output(_T("*** ERROR: could not get SYS_BAUD: %s\n"),
+				SkyeTek_GetStatusMessage(st));
+			SkyeTek_FreeReaders(readers, numReaders);
+			SkyeTek_FreeDevices(devices, numDevices);
+			//fclose(fp);
+			return 0;
+		}
+		int currentBaud = 0;
+		if (lpData->data[0] == 0)
+			currentBaud = 9600;
+		else if (lpData->data[0] == 1)
+			currentBaud = 19200;
+		else if (lpData->data[0] == 2)
+			currentBaud = 38400;
+		else if (lpData->data[0] == 3)
+			currentBaud = 57600;
+		else if (lpData->data[0] == 4)
+			currentBaud = 115200;
+		output(_T("Baud rate: %d [0x%02d]\n"), currentBaud, lpData->data[0]);
+		SkyeTek_FreeData(lpData);
+		lpData = NULL;
+	}
 
+	// Set additional timeout
+	SkyeTek_SetAdditionalTimeout(readers[0]->lpDevice, 5000);
+	output(_T("Added 5 seconds of additional timeout on device\n"));
+
+
+	ss << "Looping " << loops << "times\n";
+	out = ss.str();
+	printToScreen(strdup(out.c_str()), hWnd);
+	ss.str(std::string());
+	ss.clear();
+	// Loop, discover tags and read data
+	//output(_T("Looping %d times...\n"), loops);
+	for (int i = 0; i < loops; i++)
+	{
+		// Debug
+		//output(_T("Loop %d\n"), i);
+		ss << "Loop " << i;
+		out = ss.str();
+		printToScreen(strdup(out.c_str()), hWnd);
+		ss.str(std::string());
+		ss.clear();
+
+		// If it is an M9, set retries to zero
+		if (_tcscmp(readers[0]->model, _T("M9")) == 0)
+		{
+			lpData = SkyeTek_AllocateData(1);
+			lpData->data[0] = 0;
+			st = SkyeTek_SetSystemParameter(readers[0], SYS_COMMAND_RETRY, lpData);
+			SkyeTek_FreeData(lpData);
+			lpData = NULL;
+			if (st != SKYETEK_SUCCESS)
+			{
+				//output(_T("*** ERROR: failed to set M9 retries to 0: %s\n"), STPV3_LookupResponse(st));
+				failedLoops++;
+				continue;
+			}
+			//output(_T("Set M9 retries to zero for get tags\n"));
+		}
+
+		// Discover all tags
+		lpTags = NULL;
+		count = 0;
+		st = SkyeTek_GetTags(readers[0], AUTO_DETECT, &lpTags, &count);
+		if (st == SKYETEK_TIMEOUT)
+		{
+			//output(_T("*** WARNING: SkyeTek_GetTags timed out: %s\n"), readers[0]->friendly);
+			ss << "*** WARNING: SkyeTek_GetTags timed out: " << readers[0]->friendly << "\n";
+			out = ss.str();
+			printToScreen(strdup(out.c_str()), hWnd);
+			ss.str(std::string());
+			ss.clear();
+			failedLoops++;
+			continue;
+		}
+		else if (st != SKYETEK_SUCCESS)
+		{
+			//output(_T("*** ERROR: SkyeTek_GetTags failed: %s\n"), STPV3_LookupResponse(st));
+			ss << "*** ERROR: SkyeTek_GetTags failed: " << STPV3_LookupResponse(st) << "\n";
+			out = ss.str();
+			printToScreen(strdup(out.c_str()), hWnd);
+			ss.str(std::string());
+			ss.clear();
+			failedLoops++;
+			continue;
+		}
+
+		// Loop through tags and read each if it has data
+		//output(_T("Discovered %d tags\n"), count);
+		for (unsigned short ix = 0; ix < count; ix++)
+		{
+			//output(_T("Discovered tag: %s [%s]\n"), lpTags[ix]->friendly,
+			//	SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type));
+
+			ss << "Discovered tag: " << lpTags[ix]->friendly;
+			ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]";
+			out = ss.str();
+			printToScreen(strdup(out.c_str()), hWnd);
+			ss.str(std::string());
+			ss.clear();
+
+
+			// Don't attempt to read EM4X22 tags
+			if ((lpTags[ix]->type & 0xFFF0) != EM4X22_AUTO)
+			{
+				//output(_T("Reading tag: %s [%s]\n"), lpTags[ix]->friendly,
+				//	SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type));
+
+				ss << "Reading tag: " << lpTags[ix]->friendly;
+				ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]";
+				out = ss.str();
+				printToScreen(strdup(out.c_str()), hWnd);
+				ss.str(std::string());
+				ss.clear();
+
+				st = ReadTagData(readers[0], lpTags[ix]);
+				totalReads++;
+				if (st != SKYETEK_SUCCESS)
+				{
+					failedLoops++;
+					failedReads++;
+				}
+			}
+		}
+
+		// Free tags
+		SkyeTek_FreeTags(readers[0], lpTags, count);
+
+	} // End loop
 	return 1;
 
 }
@@ -278,28 +411,124 @@ int connect(HWND hWnd) {
 
 
 
+/**
+* This reads all of the memory on a tag.
+* @param lpReader Handle to the reader
+* @param lpTag Handle to the tag
+* @return SKYETEK_SUCCESS if it succeeds, or the failure status otherwise
+*/
+SKYETEK_STATUS ReadTagData(LPSKYETEK_READER lpReader, LPSKYETEK_TAG lpTag)
+{
+	// Variables used
+	SKYETEK_STATUS st;
+	LPSKYETEK_DATA lpData = NULL;
+	SKYETEK_ADDRESS addr;
+	SKYETEK_MEMORY mem;
+	unsigned long length;
+	unsigned char data[2048];
+	bool didFail = false;
+	unsigned char stat = 0;
+
+	// If it is an M9, set retries to 5
+	if (_tcscmp(lpReader->model, _T("M9")) == 0)
+	{
+		lpData = SkyeTek_AllocateData(1);
+		lpData->data[0] = 32;
+		st = SkyeTek_SetSystemParameter(lpReader, SYS_COMMAND_RETRY, lpData);
+		SkyeTek_FreeData(lpData);
+		lpData = NULL;
+		if (st != SKYETEK_SUCCESS)
+		{
+			output(_T("*** ERROR: failed to set M9 retries to 32: %s\n"), STPV3_LookupResponse(st));
+			return st;
+		}
+		output(_T("Set M9 retries to 32 for read tag\n"));
+	}
+
+	// Get memory info
+	memset(&mem, 0, sizeof(SKYETEK_MEMORY));
+	st = SkyeTek_GetTagInfo(lpReader, lpTag, &mem);
+	if (st != SKYETEK_SUCCESS)
+	{
+		output(_T("*** ERROR: failed to get tag info: %s\n"), STPV3_LookupResponse(st));
+		return st;
+	}
+
+	// Allocate the memory now that we know how much it has
+	memset(data, 0, 2048);
+	length = (mem.maxBlock - mem.startBlock + 1) * mem.bytesPerBlock;
+	if (length > 2048)
+	{
+		output(_T("*** ERROR: Tag data length is too big: %ld is greater than max 2048\n"), length);
+		return SKYETEK_FAILURE;
+	}
+	output(_T("Reading %d %d-byte blocks for %d bytes total\n"),
+		(mem.maxBlock - mem.startBlock + 1), mem.bytesPerBlock, length);
+
+	// NOTE: From this point forward, partial read results can be returned
+	// so the calling function will need to determine how to handle the 
+	// partial read and when to delete the allocated memory
+
+	// Initialize address based on tag type
+	memset(&addr, 0, sizeof(SKYETEK_ADDRESS));
+	addr.start = mem.startBlock;
+	addr.blocks = 1;
+
+	// Now we loop but lock and release each time so as not to starve the rest of the app
+	unsigned char *ptr = data;
+	for (; addr.start <= mem.maxBlock; addr.start++)
+	{
+
+		// Read data
+		st = SkyeTek_ReadTagData(lpReader, lpTag, &addr, 0, 0, &lpData);
+		if (st != SKYETEK_SUCCESS)
+		{
+			didFail = true;
+			ptr += mem.bytesPerBlock;
+			output(_T("Page 0x%.2X -> Read Fail (%s)\n"),
+				addr.start, SkyeTek_GetStatusMessage(st));
+			continue;
+		}
+
+		// Get lock status
+		stat = 0;
+		st = SkyeTek_GetLockStatus(lpReader, lpTag, &addr, &stat);
+		if (st != SKYETEK_SUCCESS)
+		{
+			didFail = true;
+			ptr += mem.bytesPerBlock;
+			output(_T("Page 0x%.2X -> Read Pass, Get Lock Fail (%s)\n"),
+				addr.start, SkyeTek_GetStatusMessage(st));
+			continue;
+		}
+
+		// Copy over data to buffer
+		output(_T("Page 0x%.2X -> Read Pass, Lock Pass (%s)\n"),
+			addr.start, stat ? _T("Locked") : _T("Unlocked"));
+		memcpy(ptr, lpData->data, lpData->size);
+		ptr += mem.bytesPerBlock;
+		SkyeTek_FreeData(lpData);
+		lpData = NULL;
+
+	} // End loop
+
+	  // Report data
+	lpData = SkyeTek_AllocateData((int)length);
+	SkyeTek_CopyBuffer(lpData, data, length);
+	TCHAR *str = SkyeTek_GetStringFromData(lpData);
+	output(_T("Tag data for %s: %s\n"), lpTag->friendly, str);
+	SkyeTek_FreeString(str);
+	SkyeTek_FreeData(lpData);
+
+	// Return
+	if (didFail)
+		return SKYETEK_FAILURE;
+	else
+		return SKYETEK_SUCCESS;
+}
 
 
 
-
-/*------------------------------------------------------------------------------------------------------------------
--- FUNCTION: printToScreen
---
--- DATE: October 05, 2016
---
--- REVISIONS: (Date and Description)
---
--- DESIGNER: Deric Mccadden
---
--- PROGRAMMER: Deric Mccadden
---
--- INTERFACE: void printToScreen(char readBuffer[], DWORD dwRead, LPVOID hwnd)
---
--- RETURNS: void.
---
--- NOTES:
--- This prints characters to the window for display to the user.
-----------------------------------------------------------------------------------------------------------------------*/
 
 void printToScreen(char* readBuffer, LPVOID hWnd) {
 	HDC hdc;
@@ -315,9 +544,6 @@ void printToScreen(char* readBuffer, LPVOID hWnd) {
 
 
 	for (int i = 0; i < strlen(readBuffer); i++) {
-
-		
-		
 		wchar_t temp[2];
 		swprintf_s(temp, sizeof(temp) / sizeof(wchar_t), L"%c", readBuffer[i]);
 
@@ -330,9 +556,6 @@ void printToScreen(char* readBuffer, LPVOID hWnd) {
 			y = y + tm.tmHeight + tm.tmExternalLeading;
 		}
 	}
-
-
-	
 
 	//OutputDebugStringA("received: ");
 	OutputDebugStringA(str);
@@ -355,9 +578,6 @@ void printToScreen2(LPWSTR str, LPVOID hWnd) {
 	hdc = GetDC((HWND)hWnd);
 	GetTextMetrics(hdc, &tm);
 
-
-
-
 	TextOut(hdc, x2, y2, str, wcslen(str));
 	GetTextExtentPoint32(hdc, str, wcslen(str), &size);
 
@@ -374,4 +594,36 @@ void printToScreen2(LPWSTR str, LPVOID hWnd) {
 	OutputDebugStringA("\n");*/
 	ReleaseDC((HWND)hWnd, hdc);
 	str = '\0';
+}
+
+
+
+
+void output(TCHAR *sz, ...)
+{
+	va_list args;
+
+	if (sz == NULL)
+		return;
+
+	TCHAR msg[2048];
+	memset(msg, 0, 2048 * sizeof(TCHAR));
+	TCHAR str[2048];
+	memset(str, 0, 2048 * sizeof(TCHAR));
+	TCHAR timestr[16];
+	SYSTEMTIME st;
+
+	GetLocalTime(&st);
+	memset(timestr, 0, 16 * sizeof(TCHAR));
+	_stprintf(timestr, _T("%d:%02d:%02d.%03d"), st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+
+	va_start(args, sz);
+	_vsntprintf(str, 2047, sz, args);
+	va_end(args);
+
+	_stprintf(msg, _T("%s: %s"), timestr, str);
+	_tprintf(msg);
+
+	OutputDebugStringA((LPCSTR)msg);
+	//debug(msg);
 }
