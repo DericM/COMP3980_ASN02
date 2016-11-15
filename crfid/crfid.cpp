@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <vector>
 
 #include "SkyeTekAPI.h"
 #include "SkyeTekProtocol.h"
@@ -18,9 +19,14 @@
 #define MAX_LOADSTRING 100
 #define WINDOW_WIDTH 600
 #define WINDOW_HEIGHT 400
+#define IDC_START_BUTTON 200
+#define IDC_RESET_BUTTON 201
 
 // Global Variables:
 HWND hWnd;
+HWND listBox;
+HWND startBtn;
+HWND resetBtn;
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
@@ -32,6 +38,8 @@ HANDLE hEventRead;
 int width, height;
 LPSKYETEK_READER *readers = NULL;
 bool isConnected = false;
+bool start = true;
+std::vector<std::wstring> vecTag;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -40,6 +48,7 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 int connect(HWND hWnd);
+void addTag(std::string out, LPVOID hWnd);
 void printToScreen(char* readBuffer, LPVOID hWnd);
 void printToScreen2(LPWSTR str, LPVOID hWnd);
 SKYETEK_STATUS ReadTagData(LPSKYETEK_READER lpReader, LPSKYETEK_TAG lpTag);
@@ -82,14 +91,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		CloseHandle(hThrd);
 	}
 
-	// Get the width and height
-	RECT rect;
-	if (GetClientRect(hWnd, &rect))
-	{
-		width = rect.right - rect.left;
-		height = rect.bottom - rect.top;
-	}
-
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
@@ -119,7 +120,7 @@ DWORD WINAPI ReadThread(LPVOID hwnd)
 	int a = 0;
 	while (true)
 	{
-		if (isConnected)
+		if (isConnected && start)
 			ReadTag();
 		//dwRes = WaitForSingleObject(hEventRead, 10000);
 		//switch (dwRes)
@@ -156,7 +157,7 @@ void ReadTag()
 	//output(_T("Loop %d\n"), i);
 	//ss << "Loop ";
 	//out = ss.str();
-	printToScreen(strdup(out.c_str()), hWnd);
+	//printToScreen(strdup(out.c_str()), hWnd);
 	ss.str(std::string());
 	ss.clear();
 
@@ -184,7 +185,7 @@ void ReadTag()
 		//output(_T("*** WARNING: SkyeTek_GetTags timed out: %s\n"), readers[0]->friendly);
 		ss << "*** WARNING: SkyeTek_GetTags timed out: " << readers[0]->friendly << "\n";
 		out = ss.str();
-		printToScreen(strdup(out.c_str()), hWnd);
+		//printToScreen(strdup(out.c_str()), hWnd);
 		ss.str(std::string());
 		ss.clear();
 		return;
@@ -194,7 +195,7 @@ void ReadTag()
 		//output(_T("*** ERROR: SkyeTek_GetTags failed: %s\n"), STPV3_LookupResponse(st));
 		ss << "*** ERROR: SkyeTek_GetTags failed: " << STPV3_LookupResponse(st) << "\n";
 		out = ss.str();
-		printToScreen(strdup(out.c_str()), hWnd);
+		//printToScreen(strdup(out.c_str()), hWnd);
 		ss.str(std::string());
 		ss.clear();
 		return;
@@ -203,9 +204,10 @@ void ReadTag()
 	for (unsigned short ix = 0; ix < count; ix++)
 	{
 		ss << "Discovered tag: " << lpTags[ix]->friendly;
-		ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]";
+		ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]\n";
 		out = ss.str();
-		printToScreen(strdup(out.c_str()), hWnd);
+		//printToScreen(strdup(out.c_str()), hWnd);
+		//addTag(out, hWnd);
 		ss.str(std::string());
 		ss.clear();
 
@@ -219,7 +221,11 @@ void ReadTag()
 			ss << "Reading tag: " << lpTags[ix]->friendly;
 			ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]\n";
 			out = ss.str();
-			printToScreen(strdup(out.c_str()), hWnd);
+			//printToScreen(strdup(out.c_str()), hWnd);
+			if (std::find(vecTag.begin(), vecTag.end(), lpTags[ix]->friendly) == vecTag.end()) {
+				vecTag.push_back(lpTags[ix]->friendly);
+				addTag(out, hWnd);
+			}
 			ss.str(std::string());
 			ss.clear();
 
@@ -292,6 +298,50 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
+   // Get the width and height
+   RECT rect;
+   if (GetClientRect(hWnd, &rect))
+   {
+	   width = rect.right - rect.left;
+	   height = rect.bottom - rect.top;
+   }
+
+   listBox = CreateWindow(TEXT("LISTBOX"),
+	   TEXT(""),
+	   WS_CHILD | WS_VISIBLE | WS_BORDER,
+	   10,
+	   70,
+	   width - 20,
+	   height - 120,
+	   hWnd,
+	   NULL,
+	   NULL,
+	   NULL);
+
+   startBtn = CreateWindow(L"BUTTON",
+	   L"STOP",
+	   WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+	   width * 0.5 - 100 - 30,
+	   70 + height - 120 + 10,
+	   100,
+	   30,
+	   hWnd,
+	   (HMENU)IDC_START_BUTTON,
+	   GetModuleHandle(NULL),
+	   NULL);
+
+   resetBtn = CreateWindow(L"BUTTON",
+	   L"RESET",
+	   WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+	   width * 0.5 + 30,
+	   70 + height - 120 + 10,
+	   100,
+	   30,
+	   hWnd,
+	   (HMENU)IDC_RESET_BUTTON,
+	   GetModuleHandle(NULL),
+	   NULL);
+
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
@@ -326,6 +376,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 break;
 			case IDM_CONNECT:
 				connect(hWnd);
+				break;
+			case IDC_START_BUTTON:
+				if (start)
+				{
+					start = false;
+					SendMessage(startBtn, WM_SETTEXT, NULL, (LPARAM)L"START");
+				}
+				else
+				{
+					start = true;
+					SendMessage(startBtn, WM_SETTEXT, NULL, (LPARAM)L"STOP");
+				}
+				break;
+			case IDC_RESET_BUTTON:
+				SendMessage(listBox, LB_RESETCONTENT, NULL, 0);
+				vecTag.clear();
 				break;
             default:
                 return DefWindowProc(hWnd, message, wParam, lParam);
@@ -397,7 +463,7 @@ int connect(HWND hWnd) {
 	if (numDevices == 0){
 		return 0;
 	}
-	ss << "Discovered " << numDevices << " devices.";
+	ss << "Discovered " << numDevices << " devices.\n";
 	out = ss.str();
 	printToScreen(strdup(out.c_str()), hWnd);
 	ss.str(std::string());
@@ -588,8 +654,10 @@ SKYETEK_STATUS ReadTagData(LPSKYETEK_READER lpReader, LPSKYETEK_TAG lpTag)
 		return SKYETEK_SUCCESS;
 }
 
-
-
+void addTag(std::string out, LPVOID hWnd) {
+	std::wstring msg(out.begin(), out.end());
+	SendMessage(listBox, LB_ADDSTRING, NULL, (LPARAM)msg.c_str());
+}
 
 void printToScreen(char* readBuffer, LPVOID hWnd) {
 	HDC hdc;
@@ -597,7 +665,7 @@ void printToScreen(char* readBuffer, LPVOID hWnd) {
 	TEXTMETRIC tm;
 	SIZE size;
 
-	static unsigned x = 0;
+	static unsigned x = 10;
 	static unsigned y = 0;
 
 	hdc = GetDC((HWND)hWnd);
@@ -611,12 +679,12 @@ void printToScreen(char* readBuffer, LPVOID hWnd) {
 
 		if (x + size.cx >= width)
 		{
-			x = 0;
+			x = 10;
 			y += tm.tmHeight + tm.tmExternalLeading; // next line
 		}
 		if (!wcscmp(temp, L"\n")) // handle as a new line.
 		{
-			x = 0;
+			x = 10;
 			y += tm.tmHeight + tm.tmExternalLeading; // next line
 		}
 
