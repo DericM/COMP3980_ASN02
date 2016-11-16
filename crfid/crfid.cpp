@@ -179,7 +179,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    startBtn = CreateWindow(L"BUTTON",
 	   L"STOP",
 	   WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-	   width * 0.5 - 100 - 30,
+	   (int)(width * 0.5 - 100 - 30),
 	   70 + height - 120 + 10,
 	   100,
 	   30,
@@ -191,7 +191,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    resetBtn = CreateWindow(L"BUTTON",
 	   L"RESET",
 	   WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-	   width * 0.5 + 30,
+	   (int)(width * 0.5 + 30),
 	   70 + height - 120 + 10,
 	   100,
 	   30,
@@ -299,7 +299,6 @@ int connect(HWND hWnd) {
 	LPSKYETEK_TAG *lpTags = NULL;
 	LPSKYETEK_DATA lpData = NULL;
 	SKYETEK_STATUS st;
-	unsigned short count;
 	unsigned int numDevices;
 	unsigned int numReaders;
 	int loops = 100;
@@ -495,8 +494,6 @@ DWORD WINAPI ReadThread(LPVOID hwnd)
 	LPCTSTR lpName = NULL;
 	hEventRead = CreateEvent(lpEventAttributes, bManualReset, bInitialState, lpName);
 
-	DWORD dwRes;
-	int a = 0;
 	while (true)
 	{
 		if (isConnected && start)
@@ -597,18 +594,17 @@ void addTag(std::string out, LPVOID hWnd) {
 
 void printToScreen(char* readBuffer, LPVOID hWnd) {
 	HDC hdc;
-	RECT rect;
 	TEXTMETRIC tm;
 	SIZE size;
 
-	static unsigned x = 10;
-	static unsigned y = 0;
+	static int x = 10;
+	static int y = 0;
 
 	hdc = GetDC((HWND)hWnd);
 	GetTextMetrics(hdc, &tm);
 
 
-	for (int i = 0; i < strlen(readBuffer); i++) {
+	for (size_t i = 0; i < strlen(readBuffer); i++) {
 		wchar_t temp[2];
 		swprintf_s(temp, sizeof(temp) / sizeof(wchar_t), L"%c", readBuffer[i]);
 		GetTextExtentPoint32(hdc, temp, wcslen(temp), &size);
