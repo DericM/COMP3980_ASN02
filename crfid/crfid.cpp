@@ -48,8 +48,8 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 int connect(HWND hWnd);
-void addTag(std::string out, LPVOID hWnd);
-void printToScreen(char* readBuffer, LPVOID hWnd);
+void addTag(std::wstring msg, LPVOID hWnd);
+void printToScreen(LPCWSTR readBuffer, LPVOID hWnd);
 SKYETEK_STATUS ReadTagData(LPSKYETEK_READER lpReader, LPSKYETEK_TAG lpTag);
 DWORD WINAPI ReadThread(LPVOID hwnd);
 void ReadTag();
@@ -306,21 +306,21 @@ int connect(HWND hWnd) {
 	int failedReads = 0;
 	int failedLoops = 0;
 
-	std::string out;
-	std::stringstream ss;
+	std::wstring out;
+	std::wstringstream ss;
 	
 	// Discover reader
 
-	printToScreen("Discovering reader...", hWnd);
+	printToScreen(L"Discovering reader...", hWnd);
 	
 	numDevices = SkyeTek_DiscoverDevices(&devices);
 	if (numDevices == 0){
 		return 0;
 	}
-	ss << "Discovered " << numDevices << " devices.\n";
+	ss << L"Discovered " << numDevices << L" devices.\n";
 	out = ss.str();
-	printToScreen(strdup(out.c_str()), hWnd);
-	ss.str(std::string());
+	printToScreen(out.c_str(), hWnd);
+	ss.str(std::wstring());
 	ss.clear();
 
 
@@ -330,11 +330,11 @@ int connect(HWND hWnd) {
 		SkyeTek_FreeDevices(devices, numDevices);
 		return 0;
 	}
-	ss << "Found reader: " << readers[0]->friendly << "\nOn device: ";
-	ss << readers[0]->lpDevice->type << "[" << readers[0]->lpDevice->address << "]\n";
+	ss << L"Found reader: " << readers[0]->readerName << L"\nOn device: ";
+	ss << readers[0]->lpDevice->type << L"\n";// << L"[" << readers[0]->lpDevice->address << L"]\n";
 	out = ss.str();
-	printToScreen(strdup(out.c_str()), hWnd);
-	ss.str(std::string());
+	printToScreen(out.c_str(), hWnd);
+	ss.str(std::wstring());
 	ss.clear();
 
 	
@@ -370,8 +370,8 @@ int connect(HWND hWnd) {
 
 	//ss << "Looping " << loops << "times\n";
 	out = ss.str();
-	printToScreen(strdup(out.c_str()), hWnd);
-	ss.str(std::string());
+	printToScreen(out.c_str(), hWnd);
+	ss.str(std::wstring());
 	ss.clear();
 
 	isConnected = true;
@@ -505,15 +505,15 @@ DWORD WINAPI ReadThread(LPVOID hwnd)
 
 void ReadTag()
 {
-	std::string out;
-	std::stringstream ss;
+	std::wstring out;
+	std::wstringstream ss;
 	LPSKYETEK_DATA lpData = NULL;
 	LPSKYETEK_TAG *lpTags = NULL;
 	SKYETEK_STATUS st;
 	unsigned short count;
 	int totalReads = 0;
 
-	ss.str(std::string());
+	ss.str(std::wstring());
 	ss.clear();
 
 	// If it is an M9, set retries to zero
@@ -536,43 +536,43 @@ void ReadTag()
 	st = SkyeTek_GetTags(readers[0], AUTO_DETECT, &lpTags, &count);
 	if (st == SKYETEK_TIMEOUT)
 	{
-		ss << "*** WARNING: SkyeTek_GetTags timed out: " << readers[0]->friendly << "\n";
+		ss << L"*** WARNING: SkyeTek_GetTags timed out: " << readers[0]->friendly << L"\n";
 		out = ss.str();
-		printToScreen(strdup(out.c_str()), hWnd);
-		ss.str(std::string());
+		printToScreen(out.c_str(), hWnd);
+		ss.str(std::wstring());
 		ss.clear();
 		return;
 	}
 	else if (st != SKYETEK_SUCCESS)
 	{
-		ss << "*** ERROR: SkyeTek_GetTags failed: " << STPV3_LookupResponse(st) << "\n";
+		ss << L"*** ERROR: SkyeTek_GetTags failed: " << STPV3_LookupResponse(st) << L"\n";
 		out = ss.str();
-		printToScreen(strdup(out.c_str()), hWnd);
-		ss.str(std::string());
+		printToScreen(out.c_str(), hWnd);
+		ss.str(std::wstring());
 		ss.clear();
 		return;
 	}
 
 	for (unsigned short ix = 0; ix < count; ix++)
 	{
-		ss << "Discovered tag: " << lpTags[ix]->friendly;
-		ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]\n";
+		ss << L"Discovered tag: [" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << L"]\t";
+		ss << L" - " << lpTags[ix]->friendly << L"\n";
 		out = ss.str();
 		//addTag(out, hWnd);
-		ss.str(std::string());
+		ss.str(std::wstring());
 		ss.clear();
 
 		// Don't attempt to read EM4X22 tags
 		if ((lpTags[ix]->type & 0xFFF0) != EM4X22_AUTO)
 		{
-			ss << "Reading tag: " << lpTags[ix]->friendly;
-			ss << "[" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << "]\n";
+			ss << L"Reading tag: [" << SkyeTek_GetTagTypeNameFromType(lpTags[ix]->type) << L"]\t";
+			ss << L" - " << lpTags[ix]->friendly << L"\n";
 			out = ss.str();
 			if (std::find(vecTag.begin(), vecTag.end(), lpTags[ix]->friendly) == vecTag.end()) {
 				vecTag.push_back(lpTags[ix]->friendly);
 				addTag(out, hWnd);
 			}
-			ss.str(std::string());
+			ss.str(std::wstring());
 			ss.clear();
 
 			st = ReadTagData(readers[0], lpTags[ix]);
@@ -587,12 +587,12 @@ void ReadTag()
 	SkyeTek_FreeTags(readers[0], lpTags, count);
 }
 
-void addTag(std::string out, LPVOID hWnd) {
-	std::wstring msg(out.begin(), out.end());
+void addTag(std::wstring msg, LPVOID hWnd) {
+	//std::wstring msg(out.begin(), out.end());
 	SendMessage(listBox, LB_ADDSTRING, NULL, (LPARAM)msg.c_str());
 }
 
-void printToScreen(char* readBuffer, LPVOID hWnd) {
+void printToScreen(LPCWSTR readBuffer, LPVOID hWnd) {
 	HDC hdc;
 	TEXTMETRIC tm;
 	SIZE size;
@@ -603,9 +603,8 @@ void printToScreen(char* readBuffer, LPVOID hWnd) {
 	hdc = GetDC((HWND)hWnd);
 	GetTextMetrics(hdc, &tm);
 
-
-	for (size_t i = 0; i < strlen(readBuffer); i++) {
-		wchar_t temp[2];
+	wchar_t temp[2];
+	for (size_t i = 0; i < wcslen(readBuffer); i++) {
 		swprintf_s(temp, sizeof(temp) / sizeof(wchar_t), L"%c", readBuffer[i]);
 		GetTextExtentPoint32(hdc, temp, wcslen(temp), &size);
 
@@ -620,6 +619,9 @@ void printToScreen(char* readBuffer, LPVOID hWnd) {
 			x = 10;
 			y += tm.tmHeight + tm.tmExternalLeading; // next line
 		}
+
+		if (y + tm.tmHeight >= 70)
+			y = 0;
 
 		TextOut(hdc, x, y, temp, wcslen(temp));
 		x += size.cx;
