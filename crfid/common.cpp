@@ -6,6 +6,24 @@
 
 #include "common.h"
 
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: printToScreen
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: void printToScreen(LPCWSTR readBuffer, HWND hWnd) 
+--
+-- RETURNS: void.
+--
+-- NOTES:
+-- This prints a tags data to the window for display to the user.
+----------------------------------------------------------------------------------------------------------------------*/
 void printToScreen(LPCWSTR readBuffer, HWND hWnd) {
 	RECT rect;
 	int width = 0;

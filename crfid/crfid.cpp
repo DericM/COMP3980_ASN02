@@ -1,5 +1,32 @@
-// crfid.cpp : Defines the entry point for the application.
-//
+/*------------------------------------------------------------------------------------------------------------------
+-- SOURCE FILE: crfid.cpp - An application that will read data from RFID tags and display it to a custom application.
+-- port connection.
+--
+-- PROGRAM: Comm Shell
+--
+-- FUNCTIONS:
+-- int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+--                   _In_opt_ HINSTANCE hPrevInstance,
+--                   _In_ LPWSTR    lpCmdLine,
+--                   _In_ int       nCmdShow)
+-- ATOM MyRegisterClass(HINSTANCE hInstance)
+-- BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+-- LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+-- INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+-- DWORD WINAPI ReadThread(LPVOID hwnd)
+--
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- NOTES:
+-- An application that will read data from RFID tags and display it to a custom application.
+----------------------------------------------------------------------------------------------------------------------*/
 #include "stdafx.h"
 #include "crfid.h"
 
@@ -51,6 +78,28 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 DWORD WINAPI ReadThread(LPVOID hwnd);
 
+
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: wWinMain
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+--                   _In_opt_ HINSTANCE hPrevInstance,
+--                   _In_ LPWSTR    lpCmdLine,
+--                   _In_ int       nCmdShow)
+--
+-- RETURNS: int.
+--
+-- NOTES:
+-- This function builds and displays the main window
+----------------------------------------------------------------------------------------------------------------------*/
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
                      _In_ LPWSTR    lpCmdLine,
@@ -96,11 +145,24 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     return (int) msg.wParam;
 }
 
-//
-//  FUNCTION: MyRegisterClass()
-//
-//  PURPOSE: Registers the window class.
-//
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: MyRegisterClass
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: ATOM MyRegisterClass(HINSTANCE hInstance)
+--
+-- RETURNS: ATOM.
+--
+-- NOTES:
+-- This function registers the window instance
+----------------------------------------------------------------------------------------------------------------------*/
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
     WNDCLASSEXW wcex;
@@ -122,16 +184,24 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     return RegisterClassExW(&wcex);
 }
 
-//
-//   FUNCTION: InitInstance(HINSTANCE, int)
-//
-//   PURPOSE: Saves instance handle and creates main window
-//
-//   COMMENTS:
-//
-//        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
-//
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: InitInstance
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+--
+-- RETURNS: BOOL.
+--
+-- NOTES:
+-- Saves instance handle and creates main window
+----------------------------------------------------------------------------------------------------------------------*/
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
@@ -205,16 +275,24 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    return TRUE;
 }
 
-//
-//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PURPOSE:  Processes messages for the main window.
-//
-//  WM_COMMAND  - process the application menu
-//  WM_PAINT    - Paint the main window
-//  WM_DESTROY  - post a quit message and return
-//
-//
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: WndProc
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+--
+-- RETURNS: LRESULT.
+--
+-- NOTES:
+-- Processes messages for the main window.
+----------------------------------------------------------------------------------------------------------------------*/
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -272,7 +350,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-// Message handler for about box.
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: About
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+--
+-- RETURNS: INT_PTR.
+--
+-- NOTES:
+-- Processes messages for the about box.
+----------------------------------------------------------------------------------------------------------------------*/
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
@@ -292,6 +387,24 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     return (INT_PTR)FALSE;
 }
 
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: ReadThread
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: DWORD WINAPI ReadThread(LPVOID hwnd)
+--
+-- RETURNS: DWORD.
+--
+-- NOTES:
+-- Read thread for pulling data from the device.
+----------------------------------------------------------------------------------------------------------------------*/
 DWORD WINAPI ReadThread(LPVOID hwnd)
 {
 	HWND _hwnd = (HWND)hwnd;

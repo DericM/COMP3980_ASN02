@@ -10,6 +10,24 @@
 #include "common.h"
 #include "session.h"
 
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: connect
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: bool connect(HWND hWnd, LPSKYETEK_READER** readers)
+--
+-- RETURNS: bool.
+--
+-- NOTES:
+-- Connect to any available skyeteck reader devices.
+----------------------------------------------------------------------------------------------------------------------*/
 bool connect(HWND hWnd, LPSKYETEK_READER** readers) {
 	LPSKYETEK_DEVICE *devices = NULL;
 	//LPSKYETEK_READER *readers = NULL;

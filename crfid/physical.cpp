@@ -9,6 +9,25 @@
 #include "common.h"
 #include "physical.h"
 
+
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: ReadTagData
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: SKYETEK_STATUS ReadTagData(const LPSKYETEK_READER lpReader, const LPSKYETEK_TAG lpTag)
+--
+-- RETURNS: SKYETEK_STATUS.
+--
+-- NOTES:
+-- This reads all of the memory on a tag.
+----------------------------------------------------------------------------------------------------------------------*/
 /**
 * This reads all of the memory on a tag.
 * @param lpReader Handle to the reader
@@ -112,6 +131,24 @@ SKYETEK_STATUS ReadTagData(const LPSKYETEK_READER lpReader, const LPSKYETEK_TAG 
 		return SKYETEK_SUCCESS;
 }
 
+/*------------------------------------------------------------------------------------------------------------------
+-- FUNCTION: ReadTag
+--
+-- DATE: November 15, 2016
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Deric Mccadden
+--
+-- PROGRAMMER: Jamie Lee
+--
+-- INTERFACE: void ReadTag(const LPSKYETEK_READER* readers, std::vector<std::wstring>& vecTag, HWND hWnd, HWND hListBox)
+--
+-- RETURNS: void.
+--
+-- NOTES:
+-- This reads all of the memory on a tag.
+----------------------------------------------------------------------------------------------------------------------*/
 void ReadTag(const LPSKYETEK_READER* readers, std::vector<std::wstring>& vecTag, HWND hWnd, HWND hListBox)
 {
 	std::wstring out;
