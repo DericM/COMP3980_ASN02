@@ -362,13 +362,12 @@ int connect(HWND hWnd) {
 			currentBaud = 115200;
 		SkyeTek_FreeData(lpData);
 		lpData = NULL;
+		ss << L"current baud: " << currentBaud << L"\n";
 	}
 
 	// Set additional timeout
 	SkyeTek_SetAdditionalTimeout(readers[0]->lpDevice, 5000);
 
-
-	//ss << "Looping " << loops << "times\n";
 	out = ss.str();
 	printToScreen(out.c_str(), hWnd);
 	ss.str(std::wstring());
